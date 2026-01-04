@@ -63,6 +63,22 @@ var _ = Describe("Manager", Ordered, func() {
 		_, err = utils.Run(cmd)
 		Expect(err).NotTo(HaveOccurred(), "Failed to label namespace with restricted policy")
 
+		By("creating the pihole-operator-config ConfigMap")
+		cmd = exec.Command("kubectl", "create", "configmap", "pihole-operator-config",
+			"--namespace", namespace,
+			"--from-literal=PIHOLE_URL=http://localhost:8080",
+			"--from-literal=DEFAULT_TARGET_IP=192.168.1.100",
+			"--from-literal=LOG_LEVEL=debug")
+		_, err = utils.Run(cmd)
+		Expect(err).NotTo(HaveOccurred(), "Failed to create ConfigMap")
+
+		By("creating the pihole-operator-secret Secret")
+		cmd = exec.Command("kubectl", "create", "secret", "generic", "pihole-operator-secret",
+			"--namespace", namespace,
+			"--from-literal=PIHOLE_PASSWORD=test-password")
+		_, err = utils.Run(cmd)
+		Expect(err).NotTo(HaveOccurred(), "Failed to create Secret")
+
 		By("installing CRDs")
 		cmd = exec.Command("make", "install")
 		_, err = utils.Run(cmd)

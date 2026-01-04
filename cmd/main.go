@@ -20,7 +20,6 @@ import (
 	"context"
 	"flag"
 	"log/slog"
-	"net/http"
 	"os"
 	"time"
 
@@ -138,20 +137,13 @@ func main() {
 	}
 
 	// Set up health checks
+	// Both liveness and readiness use simple ping - the operator can function
+	// even if Pi-hole is temporarily unavailable (it will retry during reconciliation)
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
 		logger.Error("unable to set up health check", "error", err)
 		os.Exit(1)
 	}
-
-	// Readiness check includes Pi-hole connectivity
-	if err := mgr.AddReadyzCheck("readyz", healthz.Checker(func(_ *http.Request) error {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		if !piholeClient.Healthy(ctx) {
-			return errPiholeUnhealthy
-		}
-		return nil
-	})); err != nil {
+	if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
 		logger.Error("unable to set up ready check", "error", err)
 		os.Exit(1)
 	}
@@ -161,13 +153,4 @@ func main() {
 		logger.Error("problem running manager", "error", err)
 		os.Exit(1)
 	}
-}
-
-// errPiholeUnhealthy is returned when Pi-hole is not reachable
-var errPiholeUnhealthy = &piholeUnhealthyError{}
-
-type piholeUnhealthyError struct{}
-
-func (e *piholeUnhealthyError) Error() string {
-	return "pi-hole is not reachable"
 }

@@ -1,0 +1,280 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: pihole-ingress-operator
+    control-plane: controller-manager
+  name: pihole-ingress-operator-system
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: pihole-ingress-operator
+  name: pihole-ingress-operator-controller-manager
+  namespace: pihole-ingress-operator-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: pihole-ingress-operator
+  name: pihole-ingress-operator-leader-election-role
+  namespace: pihole-ingress-operator-system
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: pihole-ingress-operator-manager-role
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingresses
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingresses/finalizers
+  verbs:
+  - update
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: pihole-ingress-operator-metrics-auth-role
+rules:
+- apiGroups:
+  - authentication.k8s.io
+  resources:
+  - tokenreviews
+  verbs:
+  - create
+- apiGroups:
+  - authorization.k8s.io
+  resources:
+  - subjectaccessreviews
+  verbs:
+  - create
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: pihole-ingress-operator-metrics-reader
+rules:
+- nonResourceURLs:
+  - /metrics
+  verbs:
+  - get
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: pihole-ingress-operator
+  name: pihole-ingress-operator-leader-election-rolebinding
+  namespace: pihole-ingress-operator-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: pihole-ingress-operator-leader-election-role
+subjects:
+- kind: ServiceAccount
+  name: pihole-ingress-operator-controller-manager
+  namespace: pihole-ingress-operator-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: pihole-ingress-operator
+  name: pihole-ingress-operator-manager-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: pihole-ingress-operator-manager-role
+subjects:
+- kind: ServiceAccount
+  name: pihole-ingress-operator-controller-manager
+  namespace: pihole-ingress-operator-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: pihole-ingress-operator-metrics-auth-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: pihole-ingress-operator-metrics-auth-role
+subjects:
+- kind: ServiceAccount
+  name: pihole-ingress-operator-controller-manager
+  namespace: pihole-ingress-operator-system
+---
+apiVersion: v1
+data:
+  DEFAULT_TARGET_IP: 192.168.1.100
+  LOG_LEVEL: info
+  PIHOLE_URL: http://192.168.1.2
+kind: ConfigMap
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: pihole-ingress-operator
+  name: pihole-ingress-operator-pihole-operator-config
+  namespace: pihole-ingress-operator-system
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: pihole-ingress-operator
+  name: pihole-ingress-operator-pihole-operator-secret
+  namespace: pihole-ingress-operator-system
+stringData:
+  PIHOLE_PASSWORD: your-pihole-password-here
+type: Opaque
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: pihole-ingress-operator
+    control-plane: controller-manager
+  name: pihole-ingress-operator-controller-manager-metrics-service
+  namespace: pihole-ingress-operator-system
+spec:
+  ports:
+  - name: https
+    port: 8443
+    protocol: TCP
+    targetPort: 8443
+  selector:
+    app.kubernetes.io/name: pihole-ingress-operator
+    control-plane: controller-manager
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: pihole-ingress-operator
+    control-plane: controller-manager
+  name: pihole-ingress-operator-controller-manager
+  namespace: pihole-ingress-operator-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: pihole-ingress-operator
+      control-plane: controller-manager
+  template:
+    metadata:
+      annotations:
+        kubectl.kubernetes.io/default-container: manager
+      labels:
+        app.kubernetes.io/name: pihole-ingress-operator
+        control-plane: controller-manager
+    spec:
+      containers:
+      - args:
+        - --metrics-bind-address=:8443
+        - --health-probe-bind-address=:8081
+        command:
+        - /manager
+        env:
+        - name: PIHOLE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: PIHOLE_PASSWORD
+              name: pihole-ingress-operator-pihole-operator-secret
+        envFrom:
+        - configMapRef:
+            name: pihole-ingress-operator-pihole-operator-config
+        image: gcr.io/rsJames-ttrpg/rsjames-ttrpg/pihole-ingress-operator:latest
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8081
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        name: manager
+        ports: []
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8081
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          limits:
+            cpu: 100m
+            memory: 64Mi
+          requests:
+            cpu: 10m
+            memory: 32Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+        volumeMounts: []
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      serviceAccountName: pihole-ingress-operator-controller-manager
+      terminationGracePeriodSeconds: 10
+      volumes: []

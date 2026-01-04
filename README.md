@@ -1,135 +1,211 @@
-# pihole-ingress-operator
-// TODO(user): Add simple overview of use/purpose
+# Pi-hole Ingress Operator
 
-## Description
-// TODO(user): An in-depth paragraph about your project and overview of use
+A Kubernetes operator that automatically registers DNS records in Pi-hole based on Ingress annotations. When you annotate an Ingress with `pihole.io/register: "true"`, the operator extracts hostnames and creates corresponding DNS A records in your Pi-hole instance.
 
-## Getting Started
+## How It Works
 
-### Prerequisites
-- go version v1.24.6+
-- docker version 17.03+.
-- kubectl version v1.11.3+.
-- Access to a Kubernetes v1.11.3+ cluster.
-
-### To Deploy on the cluster
-**Build and push your image to the location specified by `IMG`:**
-
-```sh
-make docker-build docker-push IMG=<some-registry>/pihole-ingress-operator:tag
+```
+┌─────────────────┐     watch      ┌──────────────────┐
+│   K8s Ingress   │ ─────────────► │     Operator     │
+│   Resources     │                │                  │
+└─────────────────┘                └────────┬─────────┘
+                                            │
+                                            │ Pi-hole v6 API
+                                            ▼
+                                   ┌──────────────────┐
+                                   │     Pi-hole      │
+                                   │   Local DNS      │
+                                   └──────────────────┘
 ```
 
-**NOTE:** This image ought to be published in the personal registry you specified.
-And it is required to have access to pull the image from the working environment.
-Make sure you have the proper permission to the registry if the above commands don’t work.
+The operator watches for Ingress resources with the `pihole.io/register: "true"` annotation and:
 
-**Install the CRDs into the cluster:**
+1. Extracts hostnames from `spec.rules[].host`
+2. Creates DNS A records in Pi-hole pointing to your ingress controller IP
+3. Cleans up records when the Ingress is deleted or annotation removed
+4. Tracks managed records to avoid conflicts with manually-created entries
 
-```sh
-make install
+## Prerequisites
+
+- Kubernetes v1.24+
+- Pi-hole v6.x with API access
+- An ingress controller with a known IP address
+
+## Installation
+
+### 1. Create the namespace and secret
+
+```bash
+kubectl create namespace pihole-operator
+
+kubectl create secret generic pihole-operator-secret \
+  --namespace pihole-operator \
+  --from-literal=PIHOLE_PASSWORD='your-pihole-password'
 ```
 
-**Deploy the Manager to the cluster with the image specified by `IMG`:**
+### 2. Create the ConfigMap
 
-```sh
-make deploy IMG=<some-registry>/pihole-ingress-operator:tag
+```bash
+kubectl create configmap pihole-operator-config \
+  --namespace pihole-operator \
+  --from-literal=PIHOLE_URL='http://192.168.1.2' \
+  --from-literal=DEFAULT_TARGET_IP='192.168.1.100' \
+  --from-literal=LOG_LEVEL='info'
 ```
 
-> **NOTE**: If you encounter RBAC errors, you may need to grant yourself cluster-admin
-privileges or be logged in as admin.
+### 3. Deploy the operator
 
-**Create instances of your solution**
-You can apply the samples (examples) from the config/sample:
-
-```sh
-kubectl apply -k config/samples/
+```bash
+make deploy IMG=ghcr.io/rsjames-ttrpg/pihole-ingress-operator:latest
 ```
 
->**NOTE**: Ensure that the samples has default values to test it out.
+Or using the install manifest:
 
-### To Uninstall
-**Delete the instances (CRs) from the cluster:**
-
-```sh
-kubectl delete -k config/samples/
+```bash
+kubectl apply -f https://raw.githubusercontent.com/rsjames-ttrpg/pihole-ingress-operator/main/dist/install.yaml
 ```
 
-**Delete the APIs(CRDs) from the cluster:**
+## Configuration
 
-```sh
-make uninstall
+### Environment Variables
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `PIHOLE_URL` | Yes | - | Base URL of Pi-hole instance (e.g., `http://192.168.1.2`) |
+| `PIHOLE_PASSWORD` | Yes | - | Pi-hole web interface password |
+| `DEFAULT_TARGET_IP` | Yes | - | Default IP for DNS A records (your ingress controller IP) |
+| `LOG_LEVEL` | No | `info` | Log level: `debug`, `info`, `warn`, `error` |
+| `WATCH_NAMESPACE` | No | `""` | Namespace to watch (empty = all namespaces) |
+
+## Usage
+
+### Basic Usage
+
+Add the `pihole.io/register: "true"` annotation to your Ingress:
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: my-app
+  annotations:
+    pihole.io/register: "true"
+spec:
+  rules:
+  - host: app.home.local
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: my-app
+            port:
+              number: 80
 ```
 
-**UnDeploy the controller from the cluster:**
+This creates a DNS record: `app.home.local → 192.168.1.100` (your configured default IP)
 
-```sh
-make undeploy
+### Annotations
+
+| Annotation | Required | Default | Description |
+|------------|----------|---------|-------------|
+| `pihole.io/register` | Yes | - | Set to `"true"` to enable DNS registration |
+| `pihole.io/target-ip` | No | `DEFAULT_TARGET_IP` | Override the target IP for this Ingress |
+| `pihole.io/hosts` | No | from `spec.rules` | Comma-separated list of hostnames to register |
+
+### Override Target IP
+
+```yaml
+metadata:
+  annotations:
+    pihole.io/register: "true"
+    pihole.io/target-ip: "10.0.0.50"
 ```
 
-## Project Distribution
+### Specify Custom Hostnames
 
-Following the options to release and provide this solution to the users.
-
-### By providing a bundle with all YAML files
-
-1. Build the installer for the image built and published in the registry:
-
-```sh
-make build-installer IMG=<some-registry>/pihole-ingress-operator:tag
+```yaml
+metadata:
+  annotations:
+    pihole.io/register: "true"
+    pihole.io/hosts: "api.local,web.local,admin.local"
 ```
 
-**NOTE:** The makefile target mentioned above generates an 'install.yaml'
-file in the dist directory. This file contains all the resources built
-with Kustomize, which are necessary to install this project without its
-dependencies.
+## Development
 
-2. Using the installer
+### Run Locally
 
-Users can just run 'kubectl apply -f <URL for YAML BUNDLE>' to install
-the project, i.e.:
+```bash
+# Set required environment variables
+export PIHOLE_URL="http://192.168.1.2"
+export PIHOLE_PASSWORD="your-password"
+export DEFAULT_TARGET_IP="192.168.1.100"
 
-```sh
-kubectl apply -f https://raw.githubusercontent.com/<org>/pihole-ingress-operator/<tag or branch>/dist/install.yaml
+# Run against your current kubeconfig context
+make run
 ```
 
-### By providing a Helm Chart
+### Build and Test
 
-1. Build the chart using the optional helm plugin
+```bash
+# Run tests
+make test
 
-```sh
-kubebuilder edit --plugins=helm/v2-alpha
+# Run linter
+make lint
+
+# Build binary
+make build
+
+# Build container image
+make docker-build IMG=pihole-operator:dev
 ```
 
-2. See that a chart was generated under 'dist/chart', and users
-can obtain this solution from there.
+### Project Structure
 
-**NOTE:** If you change the project, you need to update the Helm Chart
-using the same command above to sync the latest changes. Furthermore,
-if you create webhooks, you need to use the above command with
-the '--force' flag and manually ensure that any custom configuration
-previously added to 'dist/chart/values.yaml' or 'dist/chart/manager/manager.yaml'
-is manually re-applied afterwards.
+```
+├── cmd/
+│   └── main.go                  # Entrypoint
+├── internal/
+│   ├── config/                  # Configuration loading
+│   ├── controller/              # Ingress reconciliation logic
+│   └── pihole/                  # Pi-hole v6 API client
+├── config/
+│   ├── manager/                 # Deployment manifests
+│   └── rbac/                    # RBAC configuration
+└── Makefile
+```
 
-## Contributing
-// TODO(user): Add detailed information on how you would like others to contribute to this project
+## Limitations
 
-**NOTE:** Run `make help` for more information on all potential `make` targets
+- **Single Pi-hole instance**: The operator targets one Pi-hole at a time
+- **No finalizers**: If the operator is down when an Ingress is deleted, orphaned DNS records may remain
+- **A records only**: CNAME records are not supported
+- **Pi-hole v6 only**: Uses the v6 REST API (not compatible with v5.x)
 
-More information can be found via the [Kubebuilder Documentation](https://book.kubebuilder.io/introduction.html)
+## Troubleshooting
+
+### Check operator logs
+
+```bash
+kubectl logs -n pihole-operator -l control-plane=controller-manager -f
+```
+
+### Verify Pi-hole connectivity
+
+```bash
+kubectl exec -n pihole-operator deploy/controller-manager -- wget -q -O- http://your-pihole/api/auth
+```
+
+### Common issues
+
+**401 Unauthorized**: Check that `PIHOLE_PASSWORD` is correct
+
+**Connection refused**: Verify `PIHOLE_URL` is reachable from the cluster
+
+**Records not created**: Ensure the Ingress has `pihole.io/register: "true"` annotation
 
 ## License
 
-Copyright 2026.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-
+Apache License 2.0

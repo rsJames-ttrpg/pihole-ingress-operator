@@ -6,5 +6,5 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 images:
 - name: controller
-  newName: gcr.io/rsJames-ttrpg/rsjames-ttrpg/pihole-ingress-operator
+  newName: ghcr.io/rsjames-ttrpg/pihole-ingress-operator
   newTag: latest

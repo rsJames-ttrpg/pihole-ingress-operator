@@ -242,7 +242,7 @@ spec:
         envFrom:
         - configMapRef:
             name: pihole-ingress-operator-pihole-operator-config
-        image: gcr.io/rsJames-ttrpg/rsjames-ttrpg/pihole-ingress-operator:latest
+        image: gchr.io/rsJames-ttrpg/pihole-ingress-operator:latest
         livenessProbe:
           httpGet:
             path: /healthz

@@ -161,31 +161,6 @@ subjects:
   namespace: pihole-ingress-operator-system
 ---
 apiVersion: v1
-data:
-  DEFAULT_TARGET_IP: 192.168.1.100
-  LOG_LEVEL: info
-  PIHOLE_URL: http://192.168.1.2
-kind: ConfigMap
-metadata:
-  labels:
-    app.kubernetes.io/managed-by: kustomize
-    app.kubernetes.io/name: pihole-ingress-operator
-  name: pihole-ingress-operator-pihole-operator-config
-  namespace: pihole-ingress-operator-system
----
-apiVersion: v1
-kind: Secret
-metadata:
-  labels:
-    app.kubernetes.io/managed-by: kustomize
-    app.kubernetes.io/name: pihole-ingress-operator
-  name: pihole-ingress-operator-pihole-operator-secret
-  namespace: pihole-ingress-operator-system
-stringData:
-  PIHOLE_PASSWORD: your-pihole-password-here
-type: Opaque
----
-apiVersion: v1
 kind: Service
 metadata:
   labels:
@@ -238,11 +213,11 @@ spec:
           valueFrom:
             secretKeyRef:
               key: PIHOLE_PASSWORD
-              name: pihole-ingress-operator-pihole-operator-secret
+              name: pihole-operator-secret
         envFrom:
         - configMapRef:
-            name: pihole-ingress-operator-pihole-operator-config
-        image: gchr.io/rsJames-ttrpg/pihole-ingress-operator:latest
+            name: pihole-operator-config
+        image: ghcr.io/rsjames-ttrpg/pihole-ingress-operator:latest
         livenessProbe:
           httpGet:
             path: /healthz

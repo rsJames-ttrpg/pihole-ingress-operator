@@ -1,7 +1,9 @@
 resources:
 - manager.yaml
-- configmap.yaml
-- secret.yaml
+# ConfigMap and Secret should be created manually by users with their own values
+# See INSTALL.md for instructions
+# - configmap.yaml
+# - secret.yaml
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 images:

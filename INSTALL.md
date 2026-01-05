@@ -10,22 +10,22 @@
 
 ```bash
 # 1. Create namespace
-kubectl create namespace pihole-operator
+kubectl create namespace pihole-ingress-operator-system
 
 # 2. Create secret with Pi-hole password
-kubectl create secret generic pihole-operator-secret \
-  --namespace pihole-operator \
+kubectl create secret generic pihole-ingress-operator-pihole-operator-secret \
+  --namespace pihole-ingress-operator-system \
   --from-literal=PIHOLE_PASSWORD='your-pihole-password'
 
 # 3. Create ConfigMap with Pi-hole URL and target IP
-kubectl create configmap pihole-operator-config \
-  --namespace pihole-operator \
-  --from-literal=PIHOLE_URL='http://192.168.1.2' \
-  --from-literal=DEFAULT_TARGET_IP='192.168.1.100' \
+kubectl create configmap pihole-ingress-operator-pihole-operator-config \
+  --namespace pihole-ingress-operator-system \
+  --from-literal=PIHOLE_URL='http://your-pihole-ip' \
+  --from-literal=DEFAULT_TARGET_IP='your-ingress-controller-ip' \
   --from-literal=LOG_LEVEL='info'
 
 # 4. Apply the operator manifest
-kubectl apply -f https://github.com/OWNER/pihole-ingress-operator/releases/latest/download/install.yaml
+kubectl apply -f https://github.com/rsjames-ttrpg/pihole-ingress-operator/releases/latest/download/install.yaml
 ```
 
 ## Configuration
@@ -82,10 +82,10 @@ spec:
 
 ```bash
 # Check operator is running
-kubectl get pods -n pihole-operator
+kubectl get pods -n pihole-ingress-operator-system
 
 # View operator logs
-kubectl logs -n pihole-operator -l control-plane=controller-manager -f
+kubectl logs -n pihole-ingress-operator-system -l control-plane=controller-manager -f
 
 # Check if DNS record was created (on Pi-hole)
 # Navigate to Pi-hole Admin > Local DNS > DNS Records
@@ -94,6 +94,6 @@ kubectl logs -n pihole-operator -l control-plane=controller-manager -f
 ## Uninstall
 
 ```bash
-kubectl delete -f https://github.com/OWNER/pihole-ingress-operator/releases/latest/download/install.yaml
-kubectl delete namespace pihole-operator
+kubectl delete -f https://github.com/rsjames-ttrpg/pihole-ingress-operator/releases/latest/download/install.yaml
+kubectl delete namespace pihole-ingress-operator-system
 ```

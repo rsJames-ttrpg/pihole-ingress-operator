@@ -12,6 +12,28 @@ rules:
   - create
   - patch
 - apiGroups:
+  - gateway.networking.k8s.io
+  resources:
+  - grpcroutes
+  - httproutes
+  - tcproutes
+  - tlsroutes
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - gateway.networking.k8s.io
+  resources:
+  - grpcroutes/finalizers
+  - httproutes/finalizers
+  - tcproutes/finalizers
+  - tlsroutes/finalizers
+  verbs:
+  - update
+- apiGroups:
   - networking.k8s.io
   resources:
   - ingresses

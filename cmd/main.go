@@ -34,6 +34,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
+	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	"github.com/rsJames-ttrpg/pihole-ingress-operator/internal/config"
 	"github.com/rsJames-ttrpg/pihole-ingress-operator/internal/controller"
@@ -46,6 +48,8 @@ var (
 
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
+	utilruntime.Must(gatewayv1.Install(scheme))
+	utilruntime.Must(gatewayv1alpha2.Install(scheme))
 }
 
 func main() {
@@ -133,6 +137,51 @@ func main() {
 		Logger:          logger,
 	}).SetupWithManager(mgr); err != nil {
 		logger.Error("unable to create controller", "controller", "Ingress", "error", err)
+		os.Exit(1)
+	}
+
+	// Set up Gateway API controllers
+	if err := (&controller.HTTPRouteReconciler{
+		Client:          mgr.GetClient(),
+		Scheme:          mgr.GetScheme(),
+		PiholeClient:    piholeClient,
+		DefaultTargetIP: cfg.DefaultTargetIP,
+		Logger:          logger,
+	}).SetupWithManager(mgr); err != nil {
+		logger.Error("unable to create controller", "controller", "HTTPRoute", "error", err)
+		os.Exit(1)
+	}
+
+	if err := (&controller.GRPCRouteReconciler{
+		Client:          mgr.GetClient(),
+		Scheme:          mgr.GetScheme(),
+		PiholeClient:    piholeClient,
+		DefaultTargetIP: cfg.DefaultTargetIP,
+		Logger:          logger,
+	}).SetupWithManager(mgr); err != nil {
+		logger.Error("unable to create controller", "controller", "GRPCRoute", "error", err)
+		os.Exit(1)
+	}
+
+	if err := (&controller.TLSRouteReconciler{
+		Client:          mgr.GetClient(),
+		Scheme:          mgr.GetScheme(),
+		PiholeClient:    piholeClient,
+		DefaultTargetIP: cfg.DefaultTargetIP,
+		Logger:          logger,
+	}).SetupWithManager(mgr); err != nil {
+		logger.Error("unable to create controller", "controller", "TLSRoute", "error", err)
+		os.Exit(1)
+	}
+
+	if err := (&controller.TCPRouteReconciler{
+		Client:          mgr.GetClient(),
+		Scheme:          mgr.GetScheme(),
+		PiholeClient:    piholeClient,
+		DefaultTargetIP: cfg.DefaultTargetIP,
+		Logger:          logger,
+	}).SetupWithManager(mgr); err != nil {
+		logger.Error("unable to create controller", "controller", "TCPRoute", "error", err)
 		os.Exit(1)
 	}
 
